@@ -1,4 +1,4 @@
-> ⚠️ **WIP — pre-release.** The component code inside is production-proven (running today in a shipping Expo + react-native-windows 0.83 new-architecture app), but this standalone package build has NOT yet been compile-validated. Do not consume until the first tagged release. If you're on react-native-webview >= 15, use upstream's in-tree Windows support instead.
+> ⚠️ **WIP — pre-release, not npm-published.** The component code inside is production-proven (running today in a shipping Expo + react-native-windows 0.83 new-architecture app), and the standalone `windows/ReactNativeWebViewWindows.sln` now **builds clean on ARM64 and x64, Debug and Release** (see [Build validation](#build-validation)). Autolink-in-a-fresh-app and device/runtime testing of the standalone build are still outstanding, so this is not yet a tagged release — don't consume until then. If you're on react-native-webview >= 15, use upstream's in-tree Windows support instead.
 
 # @facilitronworks/react-native-webview-windows
 
@@ -8,11 +8,16 @@ built on the WinUI 3 **WebView2** control hosted in a
 RNW's `ContentIslandComponentView` — no separate HWND, airspace-safe, scrolls
 and clips with the RN tree.
 
-> **STATUS: staged, pre-release.** The component code is extracted verbatim
-> from a production app where it renders real web content today
-> (react-native-windows 0.83.2 new-arch, WinAppSDK 1.8, ARM64; first pixel +
-> load events verified on screen, July 2026). The **standalone library build
-> of this repo has not been run yet** — see [Build validation](#build-validation).
+> **STATUS: staged, pre-release, not npm-published.** The component code is
+> extracted verbatim from a production app where it renders real web content
+> today (react-native-windows 0.83.2 new-arch, WinAppSDK 1.8, ARM64; first
+> pixel + load events verified on screen, July 2026). The **standalone
+> `windows/ReactNativeWebViewWindows.sln` now compile-validates clean**
+> (ARM64 + x64, Debug + Release, zero errors/warnings) — see
+> [Build validation](#build-validation) for toolchain, date, and the two real
+> issues that were found and fixed to get there. Autolinking into a fresh RNW
+> app and on-device runtime testing of *this exact standalone build* (as
+> opposed to the in-app-extracted original) are still outstanding.
 
 ## Should you use this, or upstream react-native-webview 15+?
 
@@ -178,25 +183,86 @@ next to a read-only install directory.
 
 ## Build validation
 
-**PENDING.** What exists and what has been proven:
+**PASSED** — `windows/ReactNativeWebViewWindows.sln` builds clean, standalone,
+outside of any consuming app.
 
-- [x] Component `.cpp/.h` compile and run **inside a production app project**
-      (RNW 0.83.2 built from source, WinAppSDK 1.8, ARM64, new-arch) — web
-      content on screen.
-- [ ] This standalone `windows/ReactNativeWebViewWindows.sln` has **not been
-      built yet**. The project shape follows react-native-webview 15.0.0's
-      windows project (RNW cpp-lib template). Expected friction points to
-      check on first build:
-      1. `Microsoft.Web.WebView2` / WinAppSDK WinUI projections under
-         `UseExperimentalNuget=true` — may need an explicit PackageReference if
-         the RNW CppLib property sheets don't flow WinAppSDK's transitive
-         WebView2 package to library projects.
-      2. `CppWinRTIncludes.h` availability in the lib include path (comes from
-         RNW property sheets).
-      3. `RNW_NEW_ARCH` definition flow from the consuming app vs
-         `ExperimentalFeatures.props` when building the local sln.
-- [ ] Autolink end-to-end in a fresh RNW 0.83 app.
-- [ ] x64 and x86 builds (production evidence is ARM64).
+| Platform | Configuration | Result |
+| --- | --- | --- |
+| ARM64 | Debug | ✅ 0 errors, 0 warnings |
+| ARM64 | Release | ✅ 0 errors, 0 warnings |
+| x64 | Debug | ✅ 0 errors, 0 warnings |
+| x64 | Release | ✅ 0 errors, 0 warnings |
+| x86 | — | not yet run |
+
+- **Date:** July 2026.
+- **Toolchain:** Visual Studio 2022 (17.14), MSBuild 17.14.40, `v143` toolset,
+  Windows SDK 10.0.22621.0. `react-native-windows` 0.83.2 as the
+  `ReactNativeWindowsDir` reference (`Microsoft.ReactNative`/`.Cxx` NuGet
+  0.83.2, `Microsoft.WindowsAppSDK` 1.8.260508005, `Microsoft.Web.WebView2`
+  1.0.3179.45, `Microsoft.Windows.CppWinRT` 2.0.230706.1). Output: a clean
+  `ReactNativeWebViewWindows.dll` / `.winmd` per platform/config, no
+  consuming app required (`RunAutolinkCheck=false`, `RunCodegenWindows=false`
+  as already set in the `.vcxproj`).
+- **Command:** `msbuild windows/ReactNativeWebViewWindows.sln /t:Restore` then
+  `/p:Configuration=<Debug|Release> /p:Platform=<ARM64|x64>`, with
+  `ReactNativeWindowsDir` resolved either by placing the package under a
+  `node_modules/react-native-windows`-having ancestor (the normal consumption
+  path — `GetDirectoryNameOfFileAbove` in the `.vcxproj` finds it
+  automatically) or by passing it explicitly:
+  `/p:ReactNativeWindowsDir=<path-to>\node_modules\react-native-windows\`.
+
+Two real, repo-fixable issues were found and fixed to get a green build (both
+committed to this repo):
+
+1. **Missing `NuGet.config` → NU1101 on any machine without Microsoft's
+   private feed pre-configured.** `UseExperimentalNuget=true` pulls
+   `Microsoft.ReactNative` / `Microsoft.ReactNative.Cxx` as NuGet
+   `PackageReference`s, but those two packages are **not on the public
+   nuget.org gallery** — they're published only to
+   `https://pkgs.dev.azure.com/ms/react-native/_packaging/react-native-public/nuget/v3/index.json`.
+   Confirmed via each package's `.nupkg.metadata` (`"source"` field) after a
+   real restore. Without a repo-level `NuGet.config` declaring both
+   `nuget.org` (boost, `Microsoft.Windows.CppWinRT`,
+   `Microsoft.VCRTForwarders.140`, `Microsoft.WindowsAppSDK*`,
+   `Microsoft.Web.WebView2`) and that feed (`Microsoft.ReactNative*`) with
+   package source mapping, `msbuild /t:Restore` fails on a clean
+   machine/CI even though it happened to succeed on the dev box that already
+   had those exact package versions cached from an unrelated build. **Fix:**
+   added `NuGet.config` at the repo root, mirroring upstream
+   react-native-webview's own windows template `NuGet.config` (same two
+   sources, same mapping).
+2. **`C1083: Cannot open include file:
+   'winrt/impl/Windows.ApplicationModel.DataTransfer.DragDrop.2.h'`
+   — a real MSVC `MAX_PATH` (260-char) boundary, not a missing reference.**
+   The file cppwinrt.exe generates is byte-for-byte correct and present on
+   disk (verified against an identical file from a known-good production
+   build); `cl.exe` simply can't open it once the absolute path — repo root +
+   `windows\ReactNativeWebViewWindows\<Platform>\<Config>\Generated
+   Files\winrt\impl\<name>.h` — lands at or past 260 characters. This is not
+   fixed by the OS-level `LongPathsEnabled=1` registry key (confirmed already
+   set on the build machine; `cl.exe`'s own include-file resolution doesn't
+   honor it). It reproduced reliably from this package's assigned CI/agent
+   working directory (a deeply-nested temp path) and disappeared once
+   intermediates were written under a short root — **it will also bite real
+   consumers with a deep repo/`node_modules` path** (this is a known,
+   Microsoft-documented react-native-windows pain point, see
+   [win10-compat](https://microsoft.github.io/react-native-windows/docs/win10-compat)).
+   **Fix:** no source change was correct here (the `.vcxproj`'s
+   `IntDir`/`GeneratedFilesDir` already match upstream react-native-webview's
+   own template exactly — shortening them arbitrarily would just move the
+   problem). Documenting it here instead: if you hit this error on a file
+   that verifiably exists on disk, either check out closer to a drive root,
+   or override the intermediate directory to something short at build time,
+   e.g. `msbuild ... /p:IntDir=C:\o\ARM64\Debug\ /p:OutDir=C:\o\ARM64\Debug\`.
+
+Still outstanding:
+
+- [ ] Autolink end-to-end in a fresh RNW 0.83 app (this validation exercised
+      the library project directly, not through autolinking).
+- [ ] x86 build.
+- [ ] On-device runtime smoke test of *this exact standalone build's* output
+      DLL (the production evidence above is from the in-app-extracted
+      original source, not this repo's own build output).
 
 ## License
 
