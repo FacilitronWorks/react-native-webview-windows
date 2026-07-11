@@ -1,0 +1,45 @@
+{
+  "name": "@facilitronworks/react-native-webview-windows",
+  "version": "0.1.0-alpha.0",
+  "description": "WebView2-based <WebView/> Fabric component for react-native-windows New Architecture. Companion/backport for apps on react-native-webview <= 14 (upstream react-native-webview 15+ ships its own in-tree Windows New Architecture support).",
+  "main": "index.ts",
+  "types": "index.ts",
+  "files": [
+    "index.ts",
+    "src",
+    "windows",
+    "react-native.config.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {},
+  "keywords": [
+    "react-native",
+    "react-native-windows",
+    "webview",
+    "webview2",
+    "fabric",
+    "new-architecture",
+    "windows"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FacilitronWorks/react-native-webview-windows.git"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*",
+    "react-native-windows": ">=0.79.0",
+    "react-native-webview": "*"
+  },
+  "peerDependenciesMeta": {
+    "react-native-webview": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.6.0"
+  }
+}
