@@ -158,6 +158,16 @@ next to a read-only install directory.
 - **XAML bootstrap cost**: registering the component sets `XamlSupport(true)`,
   so every app launch pays WinUI XamlApplication init (order tens of ms + a
   few MB) even if no WebView ever mounts.
+- **Scaled displays need a react-native-windows fix.** RNW's
+  `ContentIslandComponentView` places the hosted island in its physical-pixel
+  composition tree without applying the display scale, so on a 200% display the
+  web content draws at half size in the top-left of its frame. This holds for RNW
+  0.83.2 through 0.85.0 (`ContentIslandComponentView.cpp` is identical in both).
+  The production app carries a react-native-windows patch that scales the
+  placement visual by `pointScaleFactor` in
+  `ContentIslandComponentView::ConnectInternal`, right after
+  `ChildSiteLink().ActualSize(...)`; until RNW fixes this upstream, apply the same
+  in your app.
 
 ## Architecture
 
@@ -263,6 +273,31 @@ Still outstanding:
 - [ ] On-device runtime smoke test of *this exact standalone build's* output
       DLL (the production evidence above is from the in-app-extracted
       original source, not this repo's own build output).
+
+### react-native-windows 0.85.0 (November 2026)
+
+**PASSED, no source changes needed.** The published package, unchanged, was autolinked into two
+production Expo apps (Facilitron FIT and Facilitron Works) on
+react-native 0.85.3 + react-native-windows 0.85.0 and compiled and linked with them:
+
+| Platform | Configuration | Result |
+| --- | --- | --- |
+| ARM64 | Release | ✅ `ReactNativeWebViewWindows.dll` built in both apps |
+| x64 | Release | ✅ `ReactNativeWebViewWindows.dll` built in both apps |
+
+- **Toolchain:** Visual Studio 2026 (18.6), MSVC 14.51 (`v145`), Windows SDK 10.0.22621.0,
+  WinAppSDK 1.8.260508005, with `Microsoft.ReactNative` built from source (the apps' own RNW 0.85.0
+  patch applied), on Windows 11 ARM64.
+- `autolink-windows` on 0.85.0 generates the same `AutolinkedNativeModules.g.*` as on 0.83.2.
+- The react-native-windows C++ surface this package calls did not change between 0.83.2 and 0.85.0.
+- **Known react-native-windows 0.85.0 crash, not in this package:** pressing Tab to move focus onto a
+  view that has a `backgroundColor` terminates the app
+  ([microsoft/react-native-windows#16527](https://github.com/microsoft/react-native-windows/issues/16527)).
+  It is fixed on RNW `main` by the one-line
+  [#16386](https://github.com/microsoft/react-native-windows/pull/16386), which is not in 0.85.0; apps on
+  0.85.0 should carry that line until a 0.85.x release ships it.
+- **Not covered yet:** the Visual Studio 2022 `v143` toolset, x86, and on-device runtime testing on
+  0.85.0.
 
 ## License
 
